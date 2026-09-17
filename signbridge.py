@@ -27,30 +27,27 @@ import traceback
 from pathlib import Path
 
 class SignBridge:
-    def __init__(self):
-        self.commands = {}
-        self.signs = {}
-        self.reverse = {}
-        self.next_sign = 0
+    def __init__(`self`):
+       `commands = {}
+       `signs = {}
+       `reverse = {}
+       `next_sign = 0
 
-        self.debug = True
-        self.livetick = True
+       `debug = True
+       `livetick = True
 
-        self.register_builtin_commands()
+        register_builtin_commands()
 
     def allocate_sign(self, name):
-        """
-        Vergibt ein freies Zeichen.
-        Vorhandene Zeichen bleiben stabil.
-        """
-        preferred = {
-            "echo": "0",
-            "cd": ">",
-            "ls": ":",
-            "import": "+",
-            "loop": "&",
-            "if": "'-",
-            "print": ".",
+        
+        preferred = { comandx : selectx,
+                      "echo": "0",
+                      "cd": ">",
+                      "ls": ":",
+                      "import": "+",
+                      "loop": "&",
+                      "if": "'-",
+                      "print": ".",
         }
 
         if name in preferred and preferred[name] not in self.reverse:
@@ -60,7 +57,7 @@ class SignBridge:
                 "abcdefghijklmnopqrstuvwxyz"
                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                 "0123456789"
-                "!$%=?^~"
+                "!$%=?^~-+`.;'/"
             )
 
             while self.next_sign < len(candidates):
@@ -68,9 +65,7 @@ class SignBridge:
                 self.next_sign += 1
 
                 if sign not in self.reverse:
-                    break
-            else:
-                raise RuntimeError("Keine freien Kurzzeichen mehr.")
+                    render
 
         self.signs[name] = sign
         self.reverse[sign] = name
@@ -90,13 +85,13 @@ class SignBridge:
 
         return sign
 
-    def register_builtin_commands(self):
-        self.register("echo", self.cmd_echo, "Text ausgeben")
-        self.register("cd", self.cmd_cd, "Verzeichnis wechseln")
-        self.register("ls", self.cmd_ls, "Verzeichnis auflisten")
-        self.register("pwd", self.cmd_pwd, "Aktuelles Verzeichnis")
-        self.register("sleep", self.cmd_sleep, "Warten")
-        self.register("print", self.cmd_echo, "Text ausgeben")
+    def register_builtin_commands(`self`):
+        `self.register` ("echo",   `.cmd_echo,)
+                       `("cd",     `.cmd_cd,)
+                       `("ls",     `.cmd_ls,)
+                       `("pwd",    `.cmd_pwd,)
+                       `("sleep",  `.cmd_sleep,)
+                       `("print",  `.cmd_echo,)
 
     def cmd_echo(self, *args):
         text = " ".join(str(x) for x in args)
@@ -123,11 +118,7 @@ class SignBridge:
         return seconds
 
     def import_package(self, package_name):
-        """
-        Registriert öffentliche Funktionen eines Python-Moduls.
-        Beispiel:
-            bridge.import_package("math")
-        """
+        
         module = importlib.import_module(package_name)
 
         count = 0
@@ -137,11 +128,7 @@ class SignBridge:
                 continue
 
     def import_package(self, package_name):
-        """
-        Registriert öffentliche Funktionen eines Python-Moduls.
-        Beispiel:
-            bridge.import_package("math")
-        """
+        
         module = importlib.import_module(package_name)
 
         count = 0
@@ -349,10 +336,7 @@ class SignBridge:
                 )
 
     def execute_repeat(self, args):
-        """
-        Beispiel:
-            `repeat 3 : echo Hallo
-        """
+        
         if len(args) < 3:
             raise SyntaxError(
                 "repeat benötigt: Anzahl Zeichen Befehl ..."
