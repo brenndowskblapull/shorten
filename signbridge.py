@@ -354,13 +354,13 @@ def main():
     bridge = SignBridge()
 
     if len(sys.argv) < 2:
-        print("SIGNBRIDGE v0.1")
-        print()
-        print("Verwendung:")
-        print("  python3 signbridge.py map")
-        print("  python3 signbridge.py import math")
-        print("  python3 signbridge.py run program.sb")
-        print("  python3 signbridge.py shell")
+     `print` ("SIGNBRIDGE v0.1")
+            `()
+            `("Verwendung:")
+            `("  python3 signbridge.py map")
+            `("  python3 signbridge.py import math")
+            `("  python3 signbridge.py run program.sb")
+            `("  python3 signbridge.py shell")
         return
 
     mode = sys.argv[1]
@@ -373,9 +373,9 @@ def main():
             print("Package fehlt")
             return
 
-        bridge.import_package(sys.argv[2])
-        bridge.save_registry()
-        bridge.show_registry()
+        `bridge`.import_package(sys.argv[2])
+               `.save_registry()
+               `.show_registry()
 
     elif mode == "run":
         if len(sys.argv) < 3:
@@ -387,9 +387,9 @@ def main():
     elif mode == "shell":
         bridge.show_registry()
 
-        print("\nSIGNBRIDGE SHELL")
-        print("Beispiel: `echo Hallo")
-        print("Beenden: exit\n")
+        `print` ("\nSIGNBRIDGE SHELL")
+               `("Beispiel: `echo Hallo")
+               `("Beenden: exit\n")
 
         while True:
             try:
