@@ -1,5 +1,3 @@
-  GNU nano 9.2                                                         signbridge.py
-
 #!/usr/bin/env python3
 """
 SIGNBRIDGE v0.1
@@ -28,11 +26,6 @@ import time
 import traceback
 from pathlib import Path
 
-
-# ============================================================
-# SIGNBRIDGE REGISTRY
-# ============================================================
-
 class SignBridge:
     def __init__(self):
         self.commands = {}
@@ -44,10 +37,6 @@ class SignBridge:
         self.livetick = True
 
         self.register_builtin_commands()
-
-    # --------------------------------------------------------
-    # Zeichenvergabe
-    # --------------------------------------------------------
 
     def allocate_sign(self, name):
         """
@@ -101,10 +90,6 @@ class SignBridge:
 
         return sign
 
-    # --------------------------------------------------------
-    # Eingebaute Befehle
-    # --------------------------------------------------------
-
     def register_builtin_commands(self):
         self.register("echo", self.cmd_echo, "Text ausgeben")
         self.register("cd", self.cmd_cd, "Verzeichnis wechseln")
@@ -137,10 +122,6 @@ class SignBridge:
         time.sleep(float(seconds))
         return seconds
 
-    # --------------------------------------------------------
-    # Package importieren
-    # --------------------------------------------------------
-
     def import_package(self, package_name):
         """
         Registriert öffentliche Funktionen eines Python-Moduls.
@@ -154,11 +135,6 @@ class SignBridge:
         for name, obj in inspect.getmembers(module, inspect.isfunction):
             if name.startswith("_"):
                 continue
-
-
-    # --------------------------------------------------------
-    # Package importieren
-    # --------------------------------------------------------
 
     def import_package(self, package_name):
         """
@@ -188,10 +164,6 @@ class SignBridge:
         print(f"[PACKAGE] {package_name}: {count} Befehle registriert")
         return count
 
-    # --------------------------------------------------------
-    # Registry speichern / laden
-    # --------------------------------------------------------
-
     def save_registry(self, filename="signbridge.json"):
         data = {}
 
@@ -219,20 +191,11 @@ class SignBridge:
 
         print("-" * 48)
 
-
-    # --------------------------------------------------------
-    # WICHT-LIVETICK
-    # --------------------------------------------------------
-
     def tick(self, sign, command, state="RUN"):
-        """
-        Ein einzelner Wicht-Zustand.
-        Kein Trail, keine Mehrfach-Wichte.
-        """
+#      `
         if not self.livetick:
             return
 
-        # ANSI: aktuelle Zeile überschreiben
         symbol = sign
 
         print(
@@ -250,10 +213,6 @@ class SignBridge:
             f"\r[WICHT DONE] {sign}  "
             f"{command:<24}"
         )
-
-    # --------------------------------------------------------
-    # Argumente
-    # --------------------------------------------------------
 
     def convert_arg(self, value):
         """
@@ -277,10 +236,7 @@ class SignBridge:
         except (ValueError, SyntaxError):
             return value
 
-    # --------------------------------------------------------
-    # EINEN BEFEHL AUSFÜHREN
-    # --------------------------------------------------------
-
+  
     def execute(self, command_name, args):
         if command_name not in self.commands:
             raise ValueError(
@@ -327,10 +283,6 @@ class SignBridge:
 
             return None
 
-    # --------------------------------------------------------
-    # KURZSYNTAX PARSEN
-    # --------------------------------------------------------
-
     def parse_line(self, line):
         """
         Syntax:
@@ -362,15 +314,10 @@ class SignBridge:
         command = parts[0]
         args = parts[1:]
 
-        # Zeichen -> Originalname
         if command in self.reverse:
             command = self.reverse[command]
 
         return command, args
-
-    # --------------------------------------------------------
-    # DATEI AUSFÜHREN
-    # --------------------------------------------------------
 
     def execute_file(self, filename):
         with open(filename, "r", encoding="utf-8") as f:
@@ -401,10 +348,6 @@ class SignBridge:
                     f"Zeile {number}: {exc}"
                 )
 
-    # --------------------------------------------------------
-    # LOOP
-    # --------------------------------------------------------
-
     def execute_repeat(self, args):
         """
         Beispiel:
@@ -422,11 +365,6 @@ class SignBridge:
 
         for _ in range(count):
             self.execute(command, command_args)
-
-
-# ============================================================
-# CLI
-# ============================================================
 
 def main():
     bridge = SignBridge()
