@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """
-SIGNBRIDGE v0.1
-Kurzsyntax + Package-Command-Registry + Wicht-Livetick + Debugging
+SIGNBRIDGE v0.2
+Kurzsyntax + Package-Command-Registry + dauerhafter Wicht-Livetick + Debugging
 
-Beispiel:
-    `echo 0
+Syntax:
+    `echo Hallo
     `cd /tmp
     `ls
     `repeat 3 : echo "Hallo"
 
-Wichtig:
-- Der Backtick ist das Signbridge-Präfix.
-- Befehle werden kontrolliert aus der Registry ausgeführt.
-- Shell-Befehle werden NICHT automatisch ausgeführt.
+Der Wicht-Livetick bleibt dauerhaft an einer festen Stelle aktiv.
+Während ein Befehl läuft, wird dort nur das Zeichen gewechselt.
 """
 
 import ast
@@ -24,30 +22,102 @@ import shlex
 import sys
 import time
 import traceback
-from pathlib import Path
+import threading
+import itertools
+
 
 class SignBridge:
-    def __init__(`self`):
-       `commands = {}
-       `signs = {}
-       `reverse = {}
-       `next_sign = 0
+    # Zeichenfolge für den dauerhaften Wicht-Livetick.
+    # Der Wicht bleibt an EINER Stelle; nur sein Zustand/Zeichen wechselt.
+    WICHT_FRAMES = ("`", "'", ".", ",", "-", "_", "`", ".", "'")
+    WICHT_INTERVAL = 0.12
 
-       `debug = True
-       `livetick = True
+    def __init__(self):
+        self.commands = {}
+        self.signs = {}
+        self.reverse = {}
+        self.next_sign = 0
 
-        register_builtin_commands()
+        self.debug = True
+        self.livetick = True
+
+        self._tick_lock = threading.Lock()
+        self._tick_stop = threading.Event()
+        self._tick_thread = None
+        self._status_text = "READY"
+
+        self.register_builtin_commands()
+        self.start_livetick()
+
+    # ------------------------------------------------------------
+    # WICHT-LIVETICK
+    # ------------------------------------------------------------
+
+    def start_livetick(self):
+        if self._tick_thread and self._tick_thread.is_alive():
+            return
+
+        self._tick_stop.clear()
+        self._tick_thread = threading.Thread(
+            target=self._livetick_loop,
+            name="signbridge-wicht",
+            daemon=True,
+        )
+        self._tick_thread.start()
+
+    def stop_livetick(self):
+        self._tick_stop.set()
+        if self._tick_thread:
+            self._tick_thread.join(timeout=0.5)
+
+        # Cursor unter die Statuszeile setzen.
+        with self._tick_lock:
+            sys.stdout.write("\r" + " " * 90 + "\r")
+            sys.stdout.flush()
+
+    def _livetick_loop(self):
+        frames = itertools.cycle(self.WICHT_FRAMES)
+
+        while not self._tick_stop.is_set():
+            if self.livetick:
+                symbol = next(frames)
+
+                with self._tick_lock:
+                    # Eine feste Terminal-Zeile / feste Position.
+                    # Kein Trail, keine neue Zeile pro Frame.
+                    text = f"\r[WICHT {symbol}] {self._status_text:<30}"
+                    sys.stdout.write(text)
+                    sys.stdout.flush()
+
+            self._tick_stop.wait(self.WICHT_INTERVAL)
+
+    def _set_status(self, status):
+        self._status_text = str(status)
+
+    def tick(self, sign, command, state="RUN"):
+        if not self.livetick:
+            return
+        self._set_status(f"{state} {command}")
+
+    def tick_done(self, sign, command, result=None):
+        if not self.livetick:
+            return
+        self._set_status(f"DONE {command}")
+
+    # ------------------------------------------------------------
+    # COMMAND REGISTRY
+    # ------------------------------------------------------------
 
     def allocate_sign(self, name):
-        
-        preferred = { comandx : selectx,
-                      "echo": "0",
-                      "cd": ">",
-                      "ls": ":",
-                      "import": "+",
-                      "loop": "&",
-                      "if": "'-",
-                      "print": ".",
+        preferred = {
+            "echo": "0",
+            "cd": ">",
+            "ls": ":",
+            "import": "+",
+            "loop": "&",
+            "if": "'-",
+            "print": ".",
+            "sleep": "~",
         }
 
         if name in preferred and preferred[name] not in self.reverse:
@@ -57,15 +127,20 @@ class SignBridge:
                 "abcdefghijklmnopqrstuvwxyz"
                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                 "0123456789"
-                "!$%=?^~-+`.;'/"
+                "!$%=?^~-+.;'/"
             )
 
+            sign = None
             while self.next_sign < len(candidates):
-                sign = candidates[self.next_sign]
+                candidate = candidates[self.next_sign]
                 self.next_sign += 1
 
-                if sign not in self.reverse:
-                    render
+                if candidate not in self.reverse and candidate != "`":
+                    sign = candidate
+                    break
+
+            if sign is None:
+                raise RuntimeError("Keine freien Command-Zeichen mehr.")
 
         self.signs[name] = sign
         self.reverse[sign] = name
@@ -85,13 +160,17 @@ class SignBridge:
 
         return sign
 
-    def register_builtin_commands(`self`):
-        `self.register` ("echo",   `.cmd_echo,)
-                       `("cd",     `.cmd_cd,)
-                       `("ls",     `.cmd_ls,)
-                       `("pwd",    `.cmd_pwd,)
-                       `("sleep",  `.cmd_sleep,)
-                       `("print",  `.cmd_echo,)
+    def register_builtin_commands(self):
+        self.register("echo", self.cmd_echo, "Text ausgeben")
+        self.register("cd", self.cmd_cd, "Arbeitsverzeichnis wechseln")
+        self.register("ls", self.cmd_ls, "Verzeichnis anzeigen")
+        self.register("pwd", self.cmd_pwd, "Arbeitsverzeichnis anzeigen")
+        self.register("sleep", self.cmd_sleep, "Warten")
+        self.register("print", self.cmd_echo, "Text ausgeben")
+
+    # ------------------------------------------------------------
+    # BUILTIN COMMANDS
+    # ------------------------------------------------------------
 
     def cmd_echo(self, *args):
         text = " ".join(str(x) for x in args)
@@ -114,42 +193,40 @@ class SignBridge:
         return result
 
     def cmd_sleep(self, seconds=1):
-        time.sleep(float(seconds))
+        seconds = float(seconds)
+        time.sleep(seconds)
         return seconds
 
-    def import_package(self, package_name):
-        
-        module = importlib.import_module(package_name)
+    # ------------------------------------------------------------
+    # PACKAGE IMPORT
+    # ------------------------------------------------------------
 
+    def import_package(self, package_name):
+        module = importlib.import_module(package_name)
         count = 0
 
         for name, obj in inspect.getmembers(module, inspect.isfunction):
             if name.startswith("_"):
                 continue
 
-    def import_package(self, package_name):
-        
-        module = importlib.import_module(package_name)
-
-        count = 0
-
-        for name, obj in inspect.getmembers(module, inspect.isfunction):
-            if name.startswith("_"):
-                continue
-
-            # Nur Funktionen, die tatsächlich aus dem Modul stammen
+            # Nur Funktionen registrieren, die wirklich aus dem Modul
+            # selbst stammen.
             if getattr(obj, "__module__", None) != module.__name__:
                 continue
 
             self.register(
                 name,
                 obj,
-                f"{package_name}.{name}"
+                f"{package_name}.{name}",
             )
             count += 1
 
         print(f"[PACKAGE] {package_name}: {count} Befehle registriert")
         return count
+
+    # ------------------------------------------------------------
+    # REGISTRY
+    # ------------------------------------------------------------
 
     def save_registry(self, filename="signbridge.json"):
         data = {}
@@ -167,7 +244,7 @@ class SignBridge:
 
     def show_registry(self):
         print("\nSIGNBRIDGE COMMAND MAP")
-        print("-" * 48)
+        print("-" * 56)
 
         for name, item in self.commands.items():
             print(
@@ -176,39 +253,13 @@ class SignBridge:
                 f"{item['description']}"
             )
 
-        print("-" * 48)
+        print("-" * 56)
 
-    def tick(self, sign, command, state="RUN"):
-#      `
-        if not self.livetick:
-            return
-
-        symbol = sign
-
-        print(
-            f"\r[WICHT {state}] {symbol}  "
-            f"{command:<24}",
-            end="",
-            flush=True
-        )
-
-    def tick_done(self, sign, command, result=None):
-        if not self.livetick:
-            return
-
-        print(
-            f"\r[WICHT DONE] {sign}  "
-            f"{command:<24}"
-        )
+    # ------------------------------------------------------------
+    # ARGUMENTE
+    # ------------------------------------------------------------
 
     def convert_arg(self, value):
-        """
-        Versucht Python-Literale zu erkennen:
-            123 -> int
-            1.5 -> float
-            true -> bool
-            "text" -> str
-        """
         if value.lower() == "true":
             return True
 
@@ -223,58 +274,60 @@ class SignBridge:
         except (ValueError, SyntaxError):
             return value
 
-  
+    # ------------------------------------------------------------
+    # EXECUTION
+    # ------------------------------------------------------------
+
     def execute(self, command_name, args):
         if command_name not in self.commands:
-            raise ValueError(
-                f"Unbekannter Befehl: {command_name}"
-            )
+            raise ValueError(f"Unbekannter Befehl: {command_name}")
 
         item = self.commands[command_name]
         function = item["function"]
         sign = item["sign"]
 
-        converted = [
-            self.convert_arg(arg)
-            for arg in args
-
-        ]
+        converted = [self.convert_arg(arg) for arg in args]
 
         self.tick(sign, command_name, "RUN")
-
         start = time.perf_counter()
 
         try:
             result = function(*converted)
-
             elapsed = time.perf_counter() - start
 
             self.tick_done(sign, command_name, result)
 
-            if self.debug:
-                print(
-                    f"[DEBUG] {sign} -> "
-                    f"{command_name}({converted}) "
-                    f"=> {result!r} "
-                    f"[{elapsed:.4f}s]"
-                )
+            # Debug-Zeile unterhalb des Live-Ticks.
+            with self._tick_lock:
+                if self.debug:
+                    print(
+                        f"\n[DEBUG] {sign} -> "
+                        f"{command_name}({converted}) "
+                        f"=> {result!r} "
+                        f"[{elapsed:.4f}s]"
+                    )
 
             return result
 
         except Exception as exc:
             self.tick(sign, command_name, "ERROR")
-            print(f"\n[ERROR] {command_name}: {exc}")
 
-            if self.debug:
-                traceback.print_exc()
+            with self._tick_lock:
+                print(f"\n[ERROR] {command_name}: {exc}")
+                if self.debug:
+                    traceback.print_exc()
 
             return None
+
+    # ------------------------------------------------------------
+    # PARSER
+    # ------------------------------------------------------------
 
     def parse_line(self, line):
         """
         Syntax:
             `echo Hallo
-            `0 Hallo       (Zeichen direkt verwenden)
+            `0 Hallo
             `cd /tmp
             `: /tmp
         """
@@ -284,9 +337,7 @@ class SignBridge:
             return None
 
         if not line.startswith("`"):
-            raise SyntaxError(
-                "Jeder ausführbare Befehl benötigt `"
-            )
+            raise SyntaxError("Jeder ausführbare Befehl benötigt `")
 
         content = line[1:].strip()
 
@@ -306,12 +357,16 @@ class SignBridge:
 
         return command, args
 
+    # ------------------------------------------------------------
+    # DATEI-AUSFÜHRUNG
+    # ------------------------------------------------------------
+
     def execute_file(self, filename):
         with open(filename, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
         for number, line in enumerate(lines, 1):
-       try:
+            try:
                 parsed = self.parse_line(line)
 
                 if parsed is None:
@@ -322,21 +377,13 @@ class SignBridge:
                 if command == "repeat":
                     self.execute_repeat(args)
                 else:
-                    self.execute(command, args = parsed
-
-                if command == "repeat":
-                    self.execute_repeat(args)
-                else:
                     self.execute(command, args)
 
             except Exception as exc:
-                print(
-                    f"\n[SYNTAX ERROR] "
-                    f"Zeile {number}: {exc}"
-                )
+                with self._tick_lock:
+                    print(f"\n[SYNTAX ERROR] Zeile {number}: {exc}")
 
     def execute_repeat(self, args):
-        
         if len(args) < 3:
             raise SyntaxError(
                 "repeat benötigt: Anzahl Zeichen Befehl ..."
@@ -350,65 +397,83 @@ class SignBridge:
         for _ in range(count):
             self.execute(command, command_args)
 
+    # ------------------------------------------------------------
+    # CLEANUP
+    # ------------------------------------------------------------
+
+    def close(self):
+        self.stop_livetick()
+
+
 def main():
     bridge = SignBridge()
 
-    if len(sys.argv) < 2:
-     `print` ("SIGNBRIDGE v0.1")
-            `()
-            `("Verwendung:")
-            `("  python3 signbridge.py map")
-            `("  python3 signbridge.py import math")
-            `("  python3 signbridge.py run program.sb")
-            `("  python3 signbridge.py shell")
-        return
-
-    mode = sys.argv[1]
-
-    if mode == "map":
-        bridge.show_registry()
-
-    elif mode == "import":
-        if len(sys.argv) < 3:
-            print("Package fehlt")
+    try:
+        if len(sys.argv) < 2:
+            print("SIGNBRIDGE v0.2")
+            print()
+            print("Verwendung:")
+            print("  python3 signbridge.py map")
+            print("  python3 signbridge.py import math")
+            print("  python3 signbridge.py run program.sb")
+            print("  python3 signbridge.py shell")
             return
 
-        `bridge`.import_package(sys.argv[2])
-               `.save_registry()
-               `.show_registry()
+        mode = sys.argv[1]
 
-    elif mode == "run":
-        if len(sys.argv) < 3:
-            print("Datei fehlt")
-            return
+        if mode == "map":
+            bridge.show_registry()
 
-        bridge.execute_file(sys.argv[2])
+        elif mode == "import":
+            if len(sys.argv) < 3:
+                print("Package fehlt")
+                return
 
-    elif mode == "shell":
-        bridge.show_registry()
+            bridge.import_package(sys.argv[2])
+            bridge.save_registry()
+            bridge.show_registry()
 
-        `print` ("\nSIGNBRIDGE SHELL")
-               `("Beispiel: `echo Hallo")
-               `("Beenden: exit\n")
+        elif mode == "run":
+            if len(sys.argv) < 3:
+                print("Datei fehlt")
+                return
 
-        while True:
-            try:
-                line = input("SB> ")
+            bridge.execute_file(sys.argv[2])
 
-                if line.strip() == "exit":
+        elif mode == "shell":
+            bridge.show_registry()
+
+            print("\nSIGNBRIDGE SHELL")
+            print("Beispiel: `echo Hallo")
+            print("Beenden: exit\n")
+
+            while True:
+                try:
+                    # Die Eingabe bleibt unterhalb des permanenten Wichts.
+                    with bridge._tick_lock:
+                        line = input("SB> ")
+
+                    if line.strip() == "exit":
+                        break
+
+                    parsed = bridge.parse_line(line)
+
+                    if parsed:
+                        command, args = parsed
+                        bridge.execute(command, args)
+
+                except (EOFError, KeyboardInterrupt):
+                    print()
                     break
+                except Exception as exc:
+                    with bridge._tick_lock:
+                        print(f"\n[ERROR] {exc}")
 
-                parsed = bridge.parse_line(line)
+        else:
+            print(f"Unbekannter Modus: {mode}")
 
-                if parsed:
-                    command, args = parsed
-                    bridge.execute(command, args)
-
-            except Exception as exc:
-                print(f"[ERROR] {exc}")
-
-    else:
-        print(f"Unbekannter Modus: {mode}")
+    finally:
+        bridge.close()
 
 
 if __name__ == "__main__":
