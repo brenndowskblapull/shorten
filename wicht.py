@@ -12,6 +12,7 @@ import os
 import random
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Optional, TextIO
 
@@ -31,7 +32,7 @@ class Wicht:
 
     Symbols are selected randomly, so the animation is not a fixed loop: a
     symbol may occasionally appear twice in a row, which makes the indicator
-    feel less mechanical.  At irregular intervals it also enters a short
+    feel less mechanical. At irregular intervals it also enters a short,
     faster burst of activity.
 
     Parameters may be configured directly or through environment variables:
@@ -157,7 +158,10 @@ class Wicht:
             "status": status,
         }
         path = Path(filename)
-        path.write_text("".join(f"{key}: {value}\n" for key, value in data.items()), encoding="utf-8")
+        path.write_text(
+            "".join(f"{key}: {value}\n" for key, value in data.items()),
+            encoding="utf-8",
+        )
         return str(path)
 
     def _next_symbol(self) -> str:
@@ -175,7 +179,9 @@ class Wicht:
             )
 
         if now < self._burst_until:
-            return self._random.uniform(self.BURST_INTERVAL_MIN, self.BURST_INTERVAL_MAX)
+            return self._random.uniform(
+                self.BURST_INTERVAL_MIN, self.BURST_INTERVAL_MAX
+            )
         return self._random.uniform(self.interval_min, self.interval_max)
 
     def _run(self) -> None:
@@ -195,8 +201,6 @@ class Wicht:
 
 
 if __name__ == "__main__":
-    import time
-
     with Wicht() as wicht:
         for state in ("READY", "RUN demo", "DONE demo"):
             wicht.set_status(state)
