@@ -29,13 +29,24 @@ def color_for_symbol(symbol: str) -> str:
 class Wicht:
     """A thread-based, terminal-friendly live status indicator.
 
+    Symbols are selected randomly, so the animation is not a fixed loop: a
+    symbol may occasionally appear twice in a row, which makes the indicator
+    feel less mechanical.  At irregular intervals it also enters a short
+    faster burst of activity.
+
     Parameters may be configured directly or through environment variables:
     ``WICHT_INTERVAL_MIN``, ``WICHT_INTERVAL_MAX`` and ``WICHT_SEED``.
     """
 
-    FRAMES = ("`", "'", ".", ",", "-", "_", "`", ".", "'")
+    # No underscore: it tends to look like a static cursor rather than a sign.
+    FRAMES = ("`", "'", ".", ",", "-")
     DEFAULT_INTERVAL_MIN = 0.06
     DEFAULT_INTERVAL_MAX = 0.35
+    BURST_INTERVAL_MIN = 0.025
+    BURST_INTERVAL_MAX = 0.09
+    BURST_CHANCE = 0.08
+    BURST_DURATION_MIN = 1.5
+    BURST_DURATION_MAX = 4.0
 
     def __init__(
         self,
@@ -75,6 +86,7 @@ class Wicht:
 
         self._random = random.Random(seed)
         self._frames = itertools.cycle(self.frames)
+        self._burst_until = 0.0
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -150,8 +162,21 @@ class Wicht:
 
     def _next_symbol(self) -> str:
         if self.random_frames:
+            # random.choice intentionally permits an occasional repeat.
             return self._random.choice(self.frames)
         return next(self._frames)
+
+    def _next_interval(self) -> float:
+        """Return a variable delay, occasionally using a short-lived burst."""
+        now = time.monotonic()
+        if now >= self._burst_until and self._random.random() < self.BURST_CHANCE:
+            self._burst_until = now + self._random.uniform(
+                self.BURST_DURATION_MIN, self.BURST_DURATION_MAX
+            )
+
+        if now < self._burst_until:
+            return self._random.uniform(self.BURST_INTERVAL_MIN, self.BURST_INTERVAL_MAX)
+        return self._random.uniform(self.interval_min, self.interval_max)
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -161,8 +186,7 @@ class Wicht:
                     self.current_symbol = symbol
                     status = self.status
                 self._write(f"\r[WICHT {symbol}] {status:<30}")
-            interval = self._random.uniform(self.interval_min, self.interval_max)
-            self._stop.wait(interval)
+            self._stop.wait(self._next_interval())
 
     def _write(self, text: str) -> None:
         with self._lock:
