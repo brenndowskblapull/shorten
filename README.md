@@ -1,2 +1,0 @@
-# shorten
-shorten repeating commands
