@@ -1,9 +1,82 @@
-alias    set comand   =   shortcut (`)  =  execution
-             echo         0            {
-             comod        >            { } expected commandmix
-             wicht        `            {                
-imports  import
-            wicht/dard.dard.predard
-            wicht/streaks/chip
-echoroom 'print code'
-coloroom  print code
+#!/usr/bin/env python3
+"""Command-line entry point for the shorten repository.
+
+This program uses the Wicht status indicator and the WBuild shell provided by
+this repository.  Run ``python main`` for the interactive shell, or pass a
+command after ``--`` to execute it non-interactively.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from typing import Sequence
+
+from wicht import Wicht
+from wbuild import WBuildShell
+
+
+def print_code() -> None:
+    """Print the supported command aliases."""
+    print("alias  command       shortcut   execution")
+    print("echo   print text     0          prints text")
+    print("comod  command mix   >          executes a shell command")
+    print("wicht  status        `          shows Wicht activity")
+    print()
+    print("Built-in commands: help, status, start, stop, export, sleep, clear, exit")
+
+
+def execute_command(shell: WBuildShell, command: str) -> int:
+    """Execute one command and return a process exit status."""
+    if command.strip().lower() in {"print code", "code", "echoroom"}:
+        print_code()
+        return 0
+
+    shell.execute(command)
+    return 0 if shell._running else 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="shorten command program with a live Wicht indicator"
+    )
+    parser.add_argument(
+        "command",
+        nargs="*",
+        help="optional command to execute; omit it to start the interactive shell",
+    )
+    parser.add_argument("--min", type=float, dest="interval_min")
+    parser.add_argument("--max", type=float, dest="interval_max")
+    parser.add_argument("--seed", type=int)
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="cycle through Wicht frames instead of selecting randomly",
+    )
+    args = parser.parse_args(argv)
+
+    wicht = Wicht(
+        interval_min=args.interval_min,
+        interval_max=args.interval_max,
+        seed=args.seed,
+        random_frames=not args.deterministic,
+    )
+    shell = WBuildShell(wicht)
+
+    if not args.command:
+        return shell.run()
+
+    command = " ".join(args.command)
+    if command.strip().lower() in {"print code", "code", "echoroom"}:
+        print_code()
+        return 0
+
+    wicht.start()
+    try:
+        return execute_command(shell, command)
+    finally:
+        wicht.stop()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
